@@ -58,6 +58,9 @@ abstract class Resource extends ResourceBase {
             }
           }
         }
+      } else if (entry.key == 'data' && entry.value is Map<String, dynamic>) {
+        // Unwrap the HATEOAS 'data' envelope — merge fields at root level.
+        _data.addAll(entry.value as Map<String, dynamic>);
       } else {
         _data[entry.key] = entry.value;
       }
@@ -172,6 +175,9 @@ abstract class Resource extends ResourceBase {
 
   /// Returns `true` if a link named [name] is present on this resource.
   bool hasLink(String name) => _links.containsKey(name);
+
+  /// Returns the href of a named link, or `null` if the link doesn't exist.
+  String? getLinkHref(String name) => _links[name]?.href;
 
   // ---------------------------------------------------------------------------
   // executeLink
