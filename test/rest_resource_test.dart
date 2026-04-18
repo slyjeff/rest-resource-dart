@@ -44,12 +44,15 @@ class UserResource extends Resource {
   );
 
   Future<UserListResource> searchUsers({
-    String lastName = '',
-    String firstName = '',
+    String? lastName,
+    String? firstName,
   }) => executeLink(
     UserListResource.new,
     'searchUsers',
-    values: {'lastName': lastName, 'firstName': firstName},
+    values: {
+      if (lastName != null) 'lastName': lastName,
+      if (firstName != null) 'firstName': firstName,
+    },
   );
 
   Future<UserResource> getById({required int id}) =>
@@ -431,8 +434,8 @@ void main() {
       () async {
         http.Request? captured;
         final mock = MockClient((req) async {
-          if (req.method == 'GET') {
-            // Return a user with no firstName in _data.
+          // Initial GET for the user — return a user with no firstName in _data.
+          if (req.url.path == '/api/users/42') {
             return http.Response(
               jsonEncode({
                 'id': 1,
@@ -450,6 +453,7 @@ void main() {
               200,
             );
           }
+          // Subsequent search call — capture and return list.
           captured = req;
           return http.Response(_userListJson(), 200);
         });
