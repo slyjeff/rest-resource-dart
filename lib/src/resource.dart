@@ -287,16 +287,28 @@ abstract class Resource extends ResourceBase {
     late http.Response httpResponse;
 
     if (verb == 'GET' || verb == 'DELETE') {
-      // Remaining params → query string.
-      final queryParams = resolved.map((k, v) => MapEntry(k, v.toString()));
+      // Remaining params → query string. Iterable values produce repeated
+      // params (?foo=a&foo=b); empty iterables are omitted entirely so the
+      // server sees "no value" rather than a literal "[]".
+      final queryParams = <String, dynamic>{};
+      for (final entry in resolved.entries) {
+        final value = entry.value;
+        if (value is Iterable) {
+          final list = value.map((e) => e.toString()).toList();
+          if (list.isNotEmpty) {
+            queryParams[entry.key] = list;
+          }
+        } else {
+          queryParams[entry.key] = value.toString();
+        }
+      }
       final uri = _client.buildUriFromHref(href, queryParams);
       httpResponse = await _client.executeRequest(verb: verb, uri: uri);
     } else {
       // Remaining params → JSON body.
       final uri = _client.buildUriFromHref(href, {});
-      final contentType = verb == 'PATCH'
-          ? 'application/merge-patch+json'
-          : 'application/json';
+      final contentType =
+          verb == 'PATCH' ? 'application/merge-patch+json' : 'application/json';
       final body = resolved.isEmpty ? null : jsonEncode(resolved);
       httpResponse = await _client.executeRequest(
         verb: verb,

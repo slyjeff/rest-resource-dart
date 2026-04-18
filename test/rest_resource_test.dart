@@ -38,25 +38,39 @@ class UserResource extends Resource {
       );
 
   Future<UserResource> patchUser({String? firstName}) => executeLink(
-    UserResource.new,
-    'patchUser',
-    values: {if (firstName != null) 'firstName': firstName},
-  );
+        UserResource.new,
+        'patchUser',
+        values: {if (firstName != null) 'firstName': firstName},
+      );
 
   Future<UserListResource> searchUsers({
     String? lastName,
     String? firstName,
-  }) => executeLink(
-    UserListResource.new,
-    'searchUsers',
-    values: {
-      if (lastName != null) 'lastName': lastName,
-      if (firstName != null) 'firstName': firstName,
-    },
-  );
+  }) =>
+      executeLink(
+        UserListResource.new,
+        'searchUsers',
+        values: {
+          if (lastName != null) 'lastName': lastName,
+          if (firstName != null) 'firstName': firstName,
+        },
+      );
 
   Future<UserResource> getById({required int id}) =>
       executeLink(UserResource.new, 'getById', values: {'id': id});
+
+  Future<UserListResource> filterUsers({
+    List<String>? tags,
+    List<int>? ids,
+  }) =>
+      executeLink(
+        UserListResource.new,
+        'filterUsers',
+        values: {
+          if (tags != null) 'tags': tags,
+          if (ids != null) 'ids': ids,
+        },
+      );
 }
 
 class UserListResource extends Resource {
@@ -124,6 +138,14 @@ String _userJson({
       'verb': 'GET',
       'parameters': [
         {'name': 'id'},
+      ],
+    },
+    'filterUsers': {
+      'href': '/api/users',
+      'verb': 'GET',
+      'parameters': [
+        {'name': 'tags'},
+        {'name': 'ids'},
       ],
     },
     ...extraLinks,
@@ -241,6 +263,64 @@ void main() {
       expect(captured, isNotNull);
       expect(captured!.url.queryParameters['lastName'], 'Smith');
       expect(captured!.url.queryParameters['firstName'], 'Jane');
+    });
+
+    test('list values produce repeated query params (?foo=a&foo=b)', () async {
+      http.Request? captured;
+      final mock = MockClient((req) async {
+        if (req.url.path == '/api/users/42') {
+          return http.Response(_userJson(), 200);
+        }
+        captured = req;
+        return http.Response(_userListJson(), 200);
+      });
+      final client = _clientWith(mock);
+      final user = await client.get(UserResource.new, '/api/users/42');
+      await user.filterUsers(tags: ['alpha', 'beta'], ids: [1, 2, 3]);
+
+      expect(captured, isNotNull);
+      expect(captured!.url.queryParametersAll['tags'], ['alpha', 'beta']);
+      expect(captured!.url.queryParametersAll['ids'], ['1', '2', '3']);
+    });
+
+    test('empty list values are omitted from query string entirely', () async {
+      http.Request? captured;
+      final mock = MockClient((req) async {
+        if (req.url.path == '/api/users/42') {
+          return http.Response(_userJson(), 200);
+        }
+        captured = req;
+        return http.Response(_userListJson(), 200);
+      });
+      final client = _clientWith(mock);
+      final user = await client.get(UserResource.new, '/api/users/42');
+      await user.filterUsers(tags: [], ids: [42]);
+
+      expect(captured, isNotNull);
+      // tags was empty → must not appear at all (not even as "?tags=" or "?tags=[]")
+      expect(captured!.url.queryParameters.containsKey('tags'), isFalse);
+      expect(captured!.url.queryParametersAll['ids'], ['42']);
+    });
+
+    test('single-element list still emits one param (not a stringified list)',
+        () async {
+      http.Request? captured;
+      final mock = MockClient((req) async {
+        if (req.url.path == '/api/users/42') {
+          return http.Response(_userJson(), 200);
+        }
+        captured = req;
+        return http.Response(_userListJson(), 200);
+      });
+      final client = _clientWith(mock);
+      final user = await client.get(UserResource.new, '/api/users/42');
+      await user.filterUsers(tags: ['only']);
+
+      expect(captured, isNotNull);
+      expect(captured!.url.queryParametersAll['tags'], ['only']);
+      // Explicitly verify we didn't serialize the list to "[only]".
+      expect(captured!.url.query.contains('['), isFalse);
+      expect(captured!.url.query.contains(']'), isFalse);
     });
 
     test('Accept header is sent', () async {

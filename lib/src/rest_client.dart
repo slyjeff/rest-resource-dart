@@ -49,7 +49,7 @@ class RestClient {
   };
 
   RestClient(this.baseUrl, {http.Client? httpClient})
-    : _httpClient = httpClient ?? http.Client();
+      : _httpClient = httpClient ?? http.Client();
 
   /// Sets an `Authorization` header, e.g. `setAuthorizationHeader('Bearer', token)`.
   void setAuthorizationHeader(String scheme, String value) {
@@ -132,8 +132,9 @@ class RestClient {
   }
 
   /// Builds a [Uri] by resolving [path] against [baseUrl] and appending
-  /// [queryParams] as a query string.
-  Uri _buildUri(String path, Map<String, String> queryParams) {
+  /// [queryParams] as a query string. Values may be `String` or
+  /// `Iterable<String>` — iterables produce repeated params (`?foo=a&foo=b`).
+  Uri _buildUri(String path, Map<String, dynamic> queryParams) {
     final base = baseUrl.endsWith('/') ? baseUrl : '$baseUrl/';
     final rel = path.startsWith('/') ? path.substring(1) : path;
     final full = '$base$rel';
@@ -144,8 +145,9 @@ class RestClient {
     );
   }
 
-  /// Builds a URI from a full href (which may already be absolute).
-  Uri buildUriFromHref(String href, Map<String, String> queryParams) {
+  /// Builds a URI from a full href (which may already be absolute). Values in
+  /// [queryParams] may be `String` or `Iterable<String>`.
+  Uri buildUriFromHref(String href, Map<String, dynamic> queryParams) {
     if (href.startsWith('http://') || href.startsWith('https://')) {
       final uri = Uri.parse(href);
       if (queryParams.isEmpty) return uri;
