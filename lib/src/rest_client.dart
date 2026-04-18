@@ -49,7 +49,7 @@ class RestClient {
   };
 
   RestClient(this.baseUrl, {http.Client? httpClient})
-      : _httpClient = httpClient ?? http.Client();
+    : _httpClient = httpClient ?? http.Client();
 
   /// Sets an `Authorization` header, e.g. `setAuthorizationHeader('Bearer', token)`.
   void setAuthorizationHeader(String scheme, String value) {
@@ -90,23 +90,11 @@ class RestClient {
       case 'DELETE':
         response = await _httpClient.delete(uri, headers: headers);
       case 'POST':
-        response = await _httpClient.post(
-          uri,
-          headers: headers,
-          body: body,
-        );
+        response = await _httpClient.post(uri, headers: headers, body: body);
       case 'PUT':
-        response = await _httpClient.put(
-          uri,
-          headers: headers,
-          body: body,
-        );
+        response = await _httpClient.put(uri, headers: headers, body: body);
       case 'PATCH':
-        response = await _httpClient.patch(
-          uri,
-          headers: headers,
-          body: body,
-        );
+        response = await _httpClient.patch(uri, headers: headers, body: body);
       default:
         throw ArgumentError('Unsupported HTTP verb: $verb');
     }

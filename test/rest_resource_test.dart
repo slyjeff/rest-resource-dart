@@ -22,36 +22,35 @@ class UserResource extends Resource {
   bool get canDeleteUser => hasLink('deleteUser');
   bool get canUpdateUser => hasLink('updateUser');
 
-  Future<UserResource> getSelf() =>
-      executeLink(UserResource.new, 'self');
+  Future<UserResource> getSelf() => executeLink(UserResource.new, 'self');
 
   Future<UserResource> deleteUser() =>
       executeLink(UserResource.new, 'deleteUser');
 
-  Future<UserResource> updateUser({
-    String? firstName,
-    String? lastName,
-  }) =>
-      executeLink(UserResource.new, 'updateUser', values: {
-        if (firstName != null) 'firstName': firstName,
-        if (lastName != null) 'lastName': lastName,
-      });
+  Future<UserResource> updateUser({String? firstName, String? lastName}) =>
+      executeLink(
+        UserResource.new,
+        'updateUser',
+        values: {
+          if (firstName != null) 'firstName': firstName,
+          if (lastName != null) 'lastName': lastName,
+        },
+      );
 
-  Future<UserResource> patchUser({
-    String? firstName,
-  }) =>
-      executeLink(UserResource.new, 'patchUser', values: {
-        if (firstName != null) 'firstName': firstName,
-      });
+  Future<UserResource> patchUser({String? firstName}) => executeLink(
+    UserResource.new,
+    'patchUser',
+    values: {if (firstName != null) 'firstName': firstName},
+  );
 
   Future<UserListResource> searchUsers({
     String lastName = '',
     String firstName = '',
-  }) =>
-      executeLink(UserListResource.new, 'searchUsers', values: {
-        'lastName': lastName,
-        'firstName': firstName,
-      });
+  }) => executeLink(
+    UserListResource.new,
+    'searchUsers',
+    values: {'lastName': lastName, 'firstName': firstName},
+  );
 
   Future<UserResource> getById({required int id}) =>
       executeLink(UserResource.new, 'getById', values: {'id': id});
@@ -62,6 +61,23 @@ class UserListResource extends Resource {
 
   List<UserResource> get users => resourceList(UserResource.new, 'users');
   int get totalCount => intValue('totalCount') ?? 0;
+}
+
+// Plain data class — deliberately does NOT extend Resource.
+class Tag {
+  final int id;
+  final String name;
+
+  const Tag({required this.id, required this.name});
+
+  factory Tag.fromJson(Map<String, dynamic> json) =>
+      Tag(id: (json['id'] as num).toInt(), name: json['name'] as String);
+}
+
+class TagListResource extends Resource {
+  TagListResource(super.client);
+
+  List<Tag> get tags => objectList(Tag.fromJson, 'tags');
 }
 
 // ---------------------------------------------------------------------------
@@ -134,7 +150,20 @@ String _userListJson() {
   });
 }
 
-RestClient _clientWith(MockClient mock) => RestClient('https://api.example.com', httpClient: mock);
+String _tagListJson() {
+  return jsonEncode({
+    'tags': [
+      {'id': 1, 'name': 'Alpha'},
+      {'id': 2, 'name': 'Beta'},
+    ],
+    '_links': {
+      'self': {'href': '/api/tags', 'verb': 'GET'},
+    },
+  });
+}
+
+RestClient _clientWith(MockClient mock) =>
+    RestClient('https://api.example.com', httpClient: mock);
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -146,8 +175,7 @@ void main() {
   // -------------------------------------------------------------------------
   group('Link parsing', () {
     test('_links are parsed into Link objects with correct verbs', () async {
-      final mock = MockClient((_) async =>
-          http.Response(_userJson(), 200));
+      final mock = MockClient((_) async => http.Response(_userJson(), 200));
       final client = _clientWith(mock);
       final user = await client.get(UserResource.new, '/api/users/42');
 
@@ -158,8 +186,7 @@ void main() {
     });
 
     test('link parameters are parsed correctly', () async {
-      final mock = MockClient((_) async =>
-          http.Response(_userJson(), 200));
+      final mock = MockClient((_) async => http.Response(_userJson(), 200));
       final client = _clientWith(mock);
       final user = await client.get(UserResource.new, '/api/users/42');
 
@@ -243,45 +270,47 @@ void main() {
   // 3. POST request
   // -------------------------------------------------------------------------
   group('POST request', () {
-    test('params serialized as JSON body with application/json content type',
-        () async {
-      http.Request? captured;
-      final mock = MockClient((req) async {
-        if (req.url.path == '/api/users/42') {
-          if (req.method == 'GET') {
-            // Override link to use POST for this test.
-            final overrideJson = jsonEncode({
-              'id': 42,
-              'firstName': 'Jane',
-              '_links': {
-                'updateUser': {
-                  'href': '/api/users/42',
-                  'verb': 'POST',
-                  'fields': [
-                    {'name': 'firstName'},
-                    {'name': 'lastName'},
-                  ],
+    test(
+      'params serialized as JSON body with application/json content type',
+      () async {
+        http.Request? captured;
+        final mock = MockClient((req) async {
+          if (req.url.path == '/api/users/42') {
+            if (req.method == 'GET') {
+              // Override link to use POST for this test.
+              final overrideJson = jsonEncode({
+                'id': 42,
+                'firstName': 'Jane',
+                '_links': {
+                  'updateUser': {
+                    'href': '/api/users/42',
+                    'verb': 'POST',
+                    'fields': [
+                      {'name': 'firstName'},
+                      {'name': 'lastName'},
+                    ],
+                  },
                 },
-              },
-            });
-            return http.Response(overrideJson, 200);
+              });
+              return http.Response(overrideJson, 200);
+            }
+            captured = req;
+            return http.Response(_userJson(), 200);
           }
-          captured = req;
-          return http.Response(_userJson(), 200);
-        }
-        return http.Response('', 404);
-      });
-      final client = _clientWith(mock);
-      final user = await client.get(UserResource.new, '/api/users/42');
-      await user.updateUser(firstName: 'John', lastName: 'Doe');
+          return http.Response('', 404);
+        });
+        final client = _clientWith(mock);
+        final user = await client.get(UserResource.new, '/api/users/42');
+        await user.updateUser(firstName: 'John', lastName: 'Doe');
 
-      expect(captured, isNotNull);
-      expect(captured!.method, 'POST');
-      expect(captured!.headers['Content-Type'], contains('application/json'));
-      final body = jsonDecode(captured!.body) as Map<String, dynamic>;
-      expect(body['firstName'], 'John');
-      expect(body['lastName'], 'Doe');
-    });
+        expect(captured, isNotNull);
+        expect(captured!.method, 'POST');
+        expect(captured!.headers['Content-Type'], contains('application/json'));
+        final body = jsonDecode(captured!.body) as Map<String, dynamic>;
+        expect(body['firstName'], 'John');
+        expect(body['lastName'], 'Doe');
+      },
+    );
   });
 
   // -------------------------------------------------------------------------
@@ -301,8 +330,10 @@ void main() {
 
       expect(captured, isNotNull);
       expect(captured!.method, 'PATCH');
-      expect(captured!.headers['Content-Type'],
-          contains('application/merge-patch+json'));
+      expect(
+        captured!.headers['Content-Type'],
+        contains('application/merge-patch+json'),
+      );
       final body = jsonDecode(captured!.body) as Map<String, dynamic>;
       expect(body['firstName'], 'Janet');
     });
@@ -333,25 +364,27 @@ void main() {
   // 6. Templated URL resolution
   // -------------------------------------------------------------------------
   group('Templated URL resolution', () {
-    test('{id} is replaced in href; leftover params go to query string',
-        () async {
-      http.Request? captured;
-      final mock = MockClient((req) async {
-        if (req.method == 'GET' && req.url.path.contains('users/42')) {
-          return http.Response(_userJson(), 200);
-        }
-        captured = req;
-        return http.Response(_userJson(id: 7), 200);
-      });
-      final client = _clientWith(mock);
-      final user = await client.get(UserResource.new, '/api/users/42');
-      await user.getById(id: 7);
+    test(
+      '{id} is replaced in href; leftover params go to query string',
+      () async {
+        http.Request? captured;
+        final mock = MockClient((req) async {
+          if (req.method == 'GET' && req.url.path.contains('users/42')) {
+            return http.Response(_userJson(), 200);
+          }
+          captured = req;
+          return http.Response(_userJson(id: 7), 200);
+        });
+        final client = _clientWith(mock);
+        final user = await client.get(UserResource.new, '/api/users/42');
+        await user.getById(id: 7);
 
-      expect(captured, isNotNull);
-      expect(captured!.url.path, contains('/7'));
-      // 'id' was consumed as a path param, should not appear in query string.
-      expect(captured!.url.queryParameters.containsKey('id'), isFalse);
-    });
+        expect(captured, isNotNull);
+        expect(captured!.url.path, contains('/7'));
+        // 'id' was consumed as a path param, should not appear in query string.
+        expect(captured!.url.queryParameters.containsKey('id'), isFalse);
+      },
+    );
   });
 
   // -------------------------------------------------------------------------
@@ -390,43 +423,45 @@ void main() {
       expect(captured, isNotNull);
       final body = jsonDecode(captured!.body) as Map<String, dynamic>;
       expect(body['firstName'], 'Jane'); // from _data
-      expect(body['lastName'], 'New');   // from caller
+      expect(body['lastName'], 'New'); // from caller
     });
 
-    test('defaultValue is used when caller and resource data both absent',
-        () async {
-      http.Request? captured;
-      final mock = MockClient((req) async {
-        if (req.method == 'GET') {
-          // Return a user with no firstName in _data.
-          return http.Response(
-            jsonEncode({
-              'id': 1,
-              '_links': {
-                'searchUsers': {
-                  'href': '/api/users',
-                  'verb': 'GET',
-                  'parameters': [
-                    {'name': 'lastName'},
-                    {'name': 'firstName', 'defaultValue': 'defaultFirst'},
-                  ],
+    test(
+      'defaultValue is used when caller and resource data both absent',
+      () async {
+        http.Request? captured;
+        final mock = MockClient((req) async {
+          if (req.method == 'GET') {
+            // Return a user with no firstName in _data.
+            return http.Response(
+              jsonEncode({
+                'id': 1,
+                '_links': {
+                  'searchUsers': {
+                    'href': '/api/users',
+                    'verb': 'GET',
+                    'parameters': [
+                      {'name': 'lastName'},
+                      {'name': 'firstName', 'defaultValue': 'defaultFirst'},
+                    ],
+                  },
                 },
-              },
-            }),
-            200,
-          );
-        }
-        captured = req;
-        return http.Response(_userListJson(), 200);
-      });
-      final client = _clientWith(mock);
-      final user = await client.get(UserResource.new, '/api/users/42');
-      // Don't supply firstName — should use defaultValue 'defaultFirst'.
-      await user.searchUsers(lastName: 'Test');
+              }),
+              200,
+            );
+          }
+          captured = req;
+          return http.Response(_userListJson(), 200);
+        });
+        final client = _clientWith(mock);
+        final user = await client.get(UserResource.new, '/api/users/42');
+        // Don't supply firstName — should use defaultValue 'defaultFirst'.
+        await user.searchUsers(lastName: 'Test');
 
-      expect(captured, isNotNull);
-      expect(captured!.url.queryParameters['firstName'], 'defaultFirst');
-    });
+        expect(captured, isNotNull);
+        expect(captured!.url.queryParameters['firstName'], 'defaultFirst');
+      },
+    );
   });
 
   // -------------------------------------------------------------------------
@@ -434,8 +469,7 @@ void main() {
   // -------------------------------------------------------------------------
   group('resourceList', () {
     test('embedded arrays are deserialized into typed resources', () async {
-      final mock = MockClient((_) async =>
-          http.Response(_userListJson(), 200));
+      final mock = MockClient((_) async => http.Response(_userListJson(), 200));
       final client = _clientWith(mock);
       final list = await client.get(UserListResource.new, '/api/users');
 
@@ -446,10 +480,9 @@ void main() {
     });
 
     test('resourceList returns empty list when key is absent', () async {
-      final mock = MockClient((_) async => http.Response(
-            jsonEncode({'_links': {}}),
-            200,
-          ));
+      final mock = MockClient(
+        (_) async => http.Response(jsonEncode({'_links': {}}), 200),
+      );
       final client = _clientWith(mock);
       final list = await client.get(UserListResource.new, '/api/users');
 
@@ -457,8 +490,7 @@ void main() {
     });
 
     test('resourceList caches results on repeated calls', () async {
-      final mock =
-          MockClient((_) async => http.Response(_userListJson(), 200));
+      final mock = MockClient((_) async => http.Response(_userListJson(), 200));
       final client = _clientWith(mock);
       final list = await client.get(UserListResource.new, '/api/users');
 
@@ -470,18 +502,90 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
+  // 8b. objectList
+  // -------------------------------------------------------------------------
+  group('objectList', () {
+    test('embedded arrays are deserialized into typed plain objects', () async {
+      final mock = MockClient((_) async => http.Response(_tagListJson(), 200));
+      final client = _clientWith(mock);
+      final list = await client.get(TagListResource.new, '/api/tags');
+
+      expect(list.tags, hasLength(2));
+      expect(list.tags[0].id, 1);
+      expect(list.tags[0].name, 'Alpha');
+      expect(list.tags[1].id, 2);
+      expect(list.tags[1].name, 'Beta');
+    });
+
+    test('objectList returns empty list when key is absent', () async {
+      final mock = MockClient(
+        (_) async => http.Response(jsonEncode({'_links': {}}), 200),
+      );
+      final client = _clientWith(mock);
+      final list = await client.get(TagListResource.new, '/api/tags');
+
+      expect(list.tags, isEmpty);
+    });
+
+    test(
+      'objectList returns empty list when value is not a JSON array',
+      () async {
+        final mock = MockClient(
+          (_) async => http.Response(
+            jsonEncode({'tags': 'not-a-list', '_links': {}}),
+            200,
+          ),
+        );
+        final client = _clientWith(mock);
+        final list = await client.get(TagListResource.new, '/api/tags');
+
+        expect(list.tags, isEmpty);
+      },
+    );
+
+    test('objectList skips non-map elements in the array', () async {
+      final mock = MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'tags': [
+              {'id': 1, 'name': 'Alpha'},
+              'not-a-map',
+              42,
+              {'id': 2, 'name': 'Beta'},
+            ],
+            '_links': {},
+          }),
+          200,
+        ),
+      );
+      final client = _clientWith(mock);
+      final list = await client.get(TagListResource.new, '/api/tags');
+
+      expect(list.tags, hasLength(2));
+      expect(list.tags[0].name, 'Alpha');
+      expect(list.tags[1].name, 'Beta');
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // 9. Error handling — throwExceptions = true
   // -------------------------------------------------------------------------
   group('Error handling (throwExceptions = true)', () {
     test('non-2xx throws RestClientException', () async {
-      final mock = MockClient((_) async =>
-          http.Response('{"error":"not found"}', 404));
+      final mock = MockClient(
+        (_) async => http.Response('{"error":"not found"}', 404),
+      );
       final client = _clientWith(mock);
 
       expect(
         () => client.get(UserResource.new, '/api/users/999'),
-        throwsA(isA<RestClientException>()
-            .having((e) => e.statusCode, 'statusCode', 404)),
+        throwsA(
+          isA<RestClientException>().having(
+            (e) => e.statusCode,
+            'statusCode',
+            404,
+          ),
+        ),
       );
     });
 
@@ -492,8 +596,13 @@ void main() {
 
       expect(
         () => user.executeLink(UserResource.new, 'nonExistentLink'),
-        throwsA(isA<LinkNotFoundException>()
-            .having((e) => e.linkName, 'linkName', 'nonExistentLink')),
+        throwsA(
+          isA<LinkNotFoundException>().having(
+            (e) => e.linkName,
+            'linkName',
+            'nonExistentLink',
+          ),
+        ),
       );
     });
   });
@@ -502,19 +611,22 @@ void main() {
   // 10. throwExceptions = false
   // -------------------------------------------------------------------------
   group('throwExceptions = false', () {
-    test('returns resource with response attached; no throw on non-2xx',
-        () async {
-      final mock = MockClient((_) async =>
-          http.Response('{"error":"not found"}', 404));
-      final client = _clientWith(mock);
-      client.throwExceptions = false;
+    test(
+      'returns resource with response attached; no throw on non-2xx',
+      () async {
+        final mock = MockClient(
+          (_) async => http.Response('{"error":"not found"}', 404),
+        );
+        final client = _clientWith(mock);
+        client.throwExceptions = false;
 
-      final user = await client.get(UserResource.new, '/api/users/999');
+        final user = await client.get(UserResource.new, '/api/users/999');
 
-      expect(user.isNotFound, isTrue);
-      expect(user.isOk, isFalse);
-      expect(user.statusCode, 404);
-    });
+        expect(user.isNotFound, isTrue);
+        expect(user.isOk, isFalse);
+        expect(user.statusCode, 404);
+      },
+    );
 
     test('successful response still populates resource', () async {
       final mock = MockClient((_) async => http.Response(_userJson(), 200));

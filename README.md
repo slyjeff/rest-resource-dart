@@ -159,12 +159,33 @@ final updated = await user.updateUser(
 
 ## Handling Embedded Lists
 
+For embedded arrays of sub-resources (items with their own `_links`), use `resourceList`:
+
 ```dart
 final list = await client.get(UserListResource.new, '/api/users');
 
 // resourceList() deserializes embedded JSON arrays into typed resources
 for (final user in list.users) {
   print(user.id);  // Each item is a fully typed UserResource
+}
+```
+
+For embedded arrays of plain data objects (value objects with no links, no `executeLink` needs), use `objectList`:
+
+```dart
+class Tag {
+  final int id;
+  final String name;
+  const Tag({required this.id, required this.name});
+  factory Tag.fromJson(Map<String, dynamic> json) =>
+      Tag(id: json['id'] as int, name: json['name'] as String);
+}
+
+class TagListResource extends Resource {
+  TagListResource(super.client);
+
+  // objectList() maps each JSON object via a factory — no Resource subclass required
+  List<Tag> get tags => objectList(Tag.fromJson, 'tags');
 }
 ```
 
@@ -363,7 +384,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
 | `doubleValue(key)` | Returns field as `double?`. |
 | `boolValue(key)` | Returns field as `bool?`. |
 | `dateValue(key)` | Returns field as `DateTime?` parsed from ISO 8601. |
-| `resourceList<T>(constructor, key)` | Returns embedded array as `List<T>` (cached). |
+| `resourceList<T>(constructor, key)` | Returns embedded array as `List<T>` of sub-resources (cached). |
+| `objectList<T>(factory, key)` | Returns embedded array as `List<T>` of plain data objects built via `factory`. |
 | `hasLink(name)` | Returns `true` if the named link is present. |
 | `executeLink<T>(constructor, linkName, {values})` | Calls the named link and returns resource `T`. |
 | `response` | The raw `http.Response` from the last request. |

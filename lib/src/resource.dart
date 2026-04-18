@@ -53,8 +53,9 @@ abstract class Resource extends ResourceBase {
         if (linksJson is Map<String, dynamic>) {
           for (final linkEntry in linksJson.entries) {
             if (linkEntry.value is Map<String, dynamic>) {
-              _links[linkEntry.key] =
-                  Link.fromJson(linkEntry.value as Map<String, dynamic>);
+              _links[linkEntry.key] = Link.fromJson(
+                linkEntry.value as Map<String, dynamic>,
+              );
             }
           }
         }
@@ -170,6 +171,29 @@ abstract class Resource extends ResourceBase {
   }
 
   // ---------------------------------------------------------------------------
+  // Embedded object lists
+  // ---------------------------------------------------------------------------
+
+  /// Returns a typed list built from each JSON map under [key], using [factory]
+  /// to deserialize each element.
+  ///
+  /// Use this for embedded arrays of plain data objects — items that don't
+  /// themselves need HATEOAS link navigation. For embedded sub-resources that
+  /// do have their own links, use [resourceList] instead.
+  ///
+  /// ```dart
+  /// List<SlotCandidate> get quick =>
+  ///     objectList(SlotCandidate.fromJson, 'quick');
+  /// ```
+  ///
+  /// Returns an empty list if [key] is absent or not a JSON array.
+  List<T> objectList<T>(T Function(Map<String, dynamic>) factory, String key) {
+    final raw = _getValue(key);
+    if (raw is! List) return [];
+    return raw.whereType<Map<String, dynamic>>().map(factory).toList();
+  }
+
+  // ---------------------------------------------------------------------------
   // Link helpers
   // ---------------------------------------------------------------------------
 
@@ -264,9 +288,7 @@ abstract class Resource extends ResourceBase {
 
     if (verb == 'GET' || verb == 'DELETE') {
       // Remaining params → query string.
-      final queryParams = resolved.map(
-        (k, v) => MapEntry(k, v.toString()),
-      );
+      final queryParams = resolved.map((k, v) => MapEntry(k, v.toString()));
       final uri = _client.buildUriFromHref(href, queryParams);
       httpResponse = await _client.executeRequest(verb: verb, uri: uri);
     } else {
