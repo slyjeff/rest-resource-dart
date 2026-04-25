@@ -136,6 +136,15 @@ abstract class Resource extends ResourceBase {
     return null;
   }
 
+  /// Returns the value of [key] as a `List<String>`. Non-string elements are
+  /// coerced via `toString()`. Returns an empty list if [key] is absent or not
+  /// a JSON array.
+  List<String> stringListValue(String key) {
+    final v = _getValue(key);
+    if (v is! List) return const [];
+    return v.map((e) => e.toString()).toList(growable: false);
+  }
+
   // ---------------------------------------------------------------------------
   // Embedded resource lists
   // ---------------------------------------------------------------------------

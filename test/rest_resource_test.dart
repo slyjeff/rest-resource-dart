@@ -19,6 +19,8 @@ class UserResource extends Resource {
   bool get active => boolValue('active') ?? false;
   DateTime? get createdAt => dateValue('createdAt');
 
+  List<String> get tagNames => stringListValue('tagNames');
+
   bool get canDeleteUser => hasLink('deleteUser');
   bool get canUpdateUser => hasLink('updateUser');
 
@@ -648,6 +650,63 @@ void main() {
       expect(list.tags, hasLength(2));
       expect(list.tags[0].name, 'Alpha');
       expect(list.tags[1].name, 'Beta');
+    });
+  });
+
+  group('stringListValue', () {
+    test('reads JSON array of strings', () async {
+      final mock = MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'tagNames': ['vegan', 'gluten-free'],
+            '_links': {},
+          }),
+          200,
+        ),
+      );
+      final client = _clientWith(mock);
+      final user = await client.get(UserResource.new, '/api/user');
+
+      expect(user.tagNames, ['vegan', 'gluten-free']);
+    });
+
+    test('returns empty list when key is absent', () async {
+      final mock = MockClient(
+        (_) async => http.Response(jsonEncode({'_links': {}}), 200),
+      );
+      final client = _clientWith(mock);
+      final user = await client.get(UserResource.new, '/api/user');
+
+      expect(user.tagNames, isEmpty);
+    });
+
+    test('returns empty list when value is not a JSON array', () async {
+      final mock = MockClient(
+        (_) async => http.Response(
+          jsonEncode({'tagNames': 'not-a-list', '_links': {}}),
+          200,
+        ),
+      );
+      final client = _clientWith(mock);
+      final user = await client.get(UserResource.new, '/api/user');
+
+      expect(user.tagNames, isEmpty);
+    });
+
+    test('coerces non-string elements via toString()', () async {
+      final mock = MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'tagNames': ['vegan', 42, true],
+            '_links': {},
+          }),
+          200,
+        ),
+      );
+      final client = _clientWith(mock);
+      final user = await client.get(UserResource.new, '/api/user');
+
+      expect(user.tagNames, ['vegan', '42', 'true']);
     });
   });
 
